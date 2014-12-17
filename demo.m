@@ -24,7 +24,8 @@
 
 font_size=15;
 disp_band=[0 12e3];
-clipping=0;
+clipping=-10;
+imscale=15;
 timescale_list = 0.5:0.2:2.2; % time scales in milliseconds for this analysis
 sono_choice=8;
 
@@ -46,7 +47,7 @@ toc
 
 figure
 h(1) = subplot(2,1,1);
-imagesc(t,f,max(log(consensus_power),clipping));
+imagesc(t,f,max(log(consensus_power+imscale),clipping));
 ylim([disp_band])
 ylabel('Frequency [Hz]','FontSize', font_size);
 axis xy;
@@ -55,7 +56,7 @@ title('Consensus contour representation','FontSize', font_size);
 colormap(hot)
 
 h(2) = subplot(2,1,2);
-imagesc(t,f,max(log(abs(sonograms{sono_choice})),clipping));
+imagesc(t,f,max(log(abs(sonograms{sono_choice})+imscale),clipping));
 ylim([disp_band]);
 titlev=sprintf('Sonogram computed with timescale %6.3g ms',timescale_list(sono_choice));
 title(titlev,'FontSize', font_size);

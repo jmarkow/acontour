@@ -1,4 +1,4 @@
-function [CONSENSUS_POWER,F,T,AUDITORY_CONTOUR,SONOGRAM]=acontour_core(SIGNAL,FS,varargin)
+function [CONSENSUS,F,T,AUDITORY_CONTOUR,SONOGRAM]=acontour_core(SIGNAL,FS,varargin)
 % This program demonstrates the recently developed time-frequency method to 
 % represent the dynamically changing sound SIGNAL like bird song with 
 % auditory contours selected at their own natural parameter sets, time-scale and angle.
@@ -31,7 +31,9 @@ angle_list = (pi/8:pi/8:pi) + pi/8; % compute contours in all these angle_list -
 timescale_list = 0.5:0.2:2.2; % time scales in milliseconds for this analysis
 clength_threshold = 95; % keep only contours longer than this length percentile 98 or 99 recommended.
 norm_amp=1;
-filtering=300;
+filtering=[];
+pow_weight=1;
+zeropad=0;
 
 %% END USER PARAMETERS
 
@@ -57,7 +59,23 @@ for i=1:2:nparams
 			filtering=varargin{i+1};
 		case 'norm_amp'
 			norm_amp=varargin{i+1};
+		case 'pow_weight'
+			pow_weight=varargin{i+1};
+		case 'zeropad'
+			zeropad=varargin{i+1};
 	end
+end
+
+len=round((len/1e3)*FS);
+overlap=round((overlap/1e3)*FS);
+
+if zeropad==0
+	zeropad=round(len/2);
+end
+
+if ~isempty(zeropad)
+	SIGNAL=[zeros(zeropad,1);SIGNAL(:);zeros(zeropad,1)];
+	disp(['Zero pad: ' num2str(zeropad/FS) ' S']);
 end
 
 if norm_amp
@@ -66,15 +84,12 @@ if norm_amp
 end
 
 if ~isempty(filtering)
-	disp(['Filtering the signal (' num2str(filtering) 'Hz ) high pass']);
+	disp(['Filtering the signal (' num2str(filtering) ' Hz) high pass']);
 	[b,a]=ellip(5,.2,40,[filtering]/(FS/2),'high');
 	SIGNAL=filtfilt(b,a,SIGNAL);
 end
 
 % convert window and overlap into samples
-
-len=round((len/1e3)*FS);
-overlap=round((overlap/1e3)*FS);
 
 ntimescale_lists = length(timescale_list);
 nangle_list = length(angle_list);
@@ -100,9 +115,9 @@ parfor sigmacount = 1:ntimescale_lists %use the matlab parallel computing toolbo
     timescale = (timescale/1000)*FS;
     w = exp(-(t_win/timescale).^2); % gauss window
     dw = w.*(t_win/(timescale^2))*-2; % deriv gauss window
-    
-    q = specgram(SIGNAL,len,[],w,overlap)+eps; %gaussian windowed spectrogram
-    q2 = specgram(SIGNAL,len,[],dw,overlap)+eps; %deriv gaussian windowed spectrogram
+   
+    q=spectrogram(SIGNAL,w,overlap,[],FS)+eps;
+    q2=spectrogram(SIGNAL,dw,overlap,[],FS)+eps;
     dx = (q2./q)/(2*pi); %displacement according to the remapping algorithm
     SONOGRAM{sigmacount} = q;
     
@@ -143,11 +158,11 @@ disp('Computing consensus...');
 % Superimpose all contours from all angle_list and time scales to produce a single image
 % Through this process, contours with stable structures will be highlited.
 
-CONSENSUS_POWER = zeros(size(SONOGRAM{1}));
+CONSENSUS = zeros(size(SONOGRAM{1}));
 
 for sigmacount = 1:ntimescale_lists-1
     
-    consensus = zeros(size(CONSENSUS_POWER));   
+    consensus = zeros(size(CONSENSUS));   
     for angle_variable=1:nangle_list
         
         if angle_variable==1
@@ -158,7 +173,12 @@ for sigmacount = 1:ntimescale_lists-1
             consensus = consensus + (cv>1); %keep only contour points that show some agreement across neighboring angle_list or time-scales.
         end
     end
-    CONSENSUS_POWER = CONSENSUS_POWER + consensus.*abs(SONOGRAM{sigmacount}); % multiply consenus score by sonogram power for final image
+
+    if pow_weight
+    	CONSENSUS = CONSENSUS + consensus.*abs(SONOGRAM{sigmacount}); % multiply consenus score by sonogram power for final image
+    else
+	CONSENSUS = CONSENSUS + consensus;
+    end
     
 end
 
@@ -171,4 +191,6 @@ ncol = fix((sig_len-overlap)/(len-overlap));
 colindex = 1 + (0:(ncol-1))*(len-overlap);
 T = ((colindex-1)+((len)/2)')/FS; 
 
-
+if ~isempty(zeropad)
+	T=T-zeropad/FS;
+end
