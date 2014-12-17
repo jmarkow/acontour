@@ -34,6 +34,7 @@ sono_choice=8;
 tic
 [consensus_power,f,t,auditory_contours,sonograms]=acontour(signal,fs,'timescale_list',timescale_list);
 toc
+
 % to pass parameters use parameter/value pairs e.g.
 %
 % [consensus_power,f,t,auditory_contours,sonograms]=acontour(signal,fs,'len',30);
