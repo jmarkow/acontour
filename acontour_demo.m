@@ -22,7 +22,7 @@
 
 % visualization parameters
 
-font_size=15;
+font_size=12;
 disp_band=[0 12e3];
 clipping=-10;
 imscale=15;

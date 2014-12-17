@@ -20,6 +20,16 @@ function [CONSENSUS,F,T,AUDITORY_CONTOUR,SONOGRAM]=acontour_core(SIGNAL,FS,varar
 % Copyright (C) Yoonseob Lim, Jeff Markowitz, and Timothy J. Gardner
 % All rights reserved
 
+if nargin<1 | isempty(SIGNAL)
+	error('Need signal to continue');
+end
+
+if nargin<2 |  isempty(FS)
+	error('Need sampling rate to continue');
+end
+
+
+
 %% PARAMETERS (PASSED AS PARAMETER/VALUE PAIRS) 
 
 %these parameter settings are more practical, for speed.
