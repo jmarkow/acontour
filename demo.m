@@ -1,4 +1,3 @@
-
 % This program demonstrates the recently developed time-frequency method to 
 % represent the dynamically changing sound signal like bird song with 
 % auditory contours selected at their own natural parameter sets, time-scale and angle.
@@ -21,59 +20,50 @@
 % All rights reserved
 
 
-tic
+% visualization parameters
+
+font_size=15;
+disp_band=[0 12e3];
+clipping=0;
+timescale_list = 0.5:0.2:2.2; % time scales in milliseconds for this analysis
+sono_choice=8;
 
 % Load the sample sound
 [signal, fs] = wavread('finchdoublet.wav');
 
-	
-%% Parameters
+tic
+[consensus_power,f,t,auditory_contours,sonograms]=acontour(signal,fs,'timescale_list',timescale_list);
+toc
+% to pass parameters use parameter/value pairs e.g.
+%
+% [consensus_power,f,t,auditory_contours,sonograms]=acontour(signal,fs,'len',30);
+%
+% would change the window length to 30 ms
 
-FREQUENCYLIMIT = 12e3; %Upper Range of plot in Hz
-
-%these parameter settings are more practical, for speed.
-Nfft = 1024;
-Nshift = 20;
-
-angles = (pi/8:pi/8:pi) + pi/8; % compute contours in all these angles - recommended not to change.
-TScale = 0.5:0.2:2.2; % time scales in milliseconds for this analysis
-sonogramindex = 8; % which of the time-scales above should be used for the sonogram?
-ARThreshold = 95; % keep only contours longer than this length percentile 98 or 99 recommended.
-
-NtScale = length(TScale);
-Nangle = length(angles);
-
-tWin = -Nfft/2+0.5:Nfft/2-0.5;
 
 %% Visualization
 
-PIXELRANGE=floor((Nfft/2)*1000*FREQUENCYLIMIT/(fs/2));
-FONTSIZE=15;
-
-% compute the Time and Frequency vector for plotting
-
 figure
 h(1) = subplot(2,1,1);
-imagesc(T,F,log(consensuspower+10))
-ylim([0 FREQUENCYLIMIT])
-ylabel('frequency [kHz]','FontSize', FONTSIZE);
-set(gca,'YDir','normal');
-xlabel('time [ms]','FontSize', FONTSIZE);
-title('Consensus contour representation','FontSize', FONTSIZE);
+imagesc(t,f,max(log(consensus_power),clipping));
+ylim([disp_band])
+ylabel('Frequency [Hz]','FontSize', font_size);
+axis xy;
+xlabel('Time [s]','FontSize', font_size);
+title('Consensus contour representation','FontSize', font_size);
 colormap(hot)
 
 h(2) = subplot(2,1,2);
-imagesc(T,F,log(abs(sonogramrecord{sonogramindex})+10))
-ylim([0 FREQUENCYLIMIT])
-titlev=sprintf('Sonogram computed with timescale %6.3g ms',TScale(sonogramindex));
-title(titlev,'FontSize', FONTSIZE);
-ylabel('frequency [kHz]','FontSize', FONTSIZE);
+imagesc(t,f,max(log(abs(sonograms{sono_choice})),clipping));
+ylim([disp_band]);
+titlev=sprintf('Sonogram computed with timescale %6.3g ms',timescale_list(sono_choice));
+title(titlev,'FontSize', font_size);
+ylabel('Frequency [Hz]','FontSize', font_size);
 set(gca,'YDir','normal');
-xlabel('time [ms]','FontSize', FONTSIZE);
+xlabel('Time [s]','FontSize', font_size);
 colormap(hot)
 
 linkaxes(h,'x')
-toc
 
 
 
