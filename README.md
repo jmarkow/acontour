@@ -4,6 +4,8 @@ This is a MATLAB script for computing the auditory contour transform (for detail
 
 All parameters are passed as parameter/value pairs (see demo script for an example).
 
+This has been tested with MATLAB R2012b running on Max OS X 10.9.  Toolbox requirements:  Image Processing Toolbox, Signal Processing Toolbox, Parallel Processing Toolbox.
+
 
 
 
