@@ -99,6 +99,7 @@ if ~isempty(filtering)
 	SIGNAL=filtfilt(b,a,SIGNAL);
 end
 
+
 % convert window and overlap into samples
 
 ntimescale_lists = length(timescale_list);
@@ -118,48 +119,59 @@ t_win = -len/2+0.5:len/2-0.5;
 
 disp('Computing contours...');
 
-AUDITORY_CONTOUR = cell(1,ntimescale_lists);
-parfor sigmacount = 1:ntimescale_lists %use the matlab parallel computing toolbox if multiple processors are available.
-    
-    timescale = timescale_list(sigmacount);
-    timescale = (timescale/1000)*FS;
-    w = exp(-(t_win/timescale).^2); % gauss window
-    dw = w.*(t_win/(timescale^2))*-2; % deriv gauss window
-   
-    q=spectrogram(SIGNAL,w,overlap,[],FS)+eps;
-    q2=spectrogram(SIGNAL,dw,overlap,[],FS)+eps;
-    dx = (q2./q)/(2*pi); %displacement according to the remapping algorithm
-    SONOGRAM{sigmacount} = q;
-    
-    for angle_variable = 1:nangle_list
-                
-        theta = angle_list(angle_variable);
-        
-        % a quick approximation to the contour detection
-        s = -1*(imag(dx*exp(1j*theta))<0)+(imag(dx*exp(1j*theta))>0);
-        [gx, gy] = gradient(s);
-        BW = ((-gx*cos(theta+pi/2)+gy*sin(theta+pi/2))>.001);        
-        
-        cc = bwconncomp(BW); %build a strucure containing a separate entry for each contour (connected component of BW).
-        cc_pix = regionprops(cc,'Area'); %this is the length of each contour
-        weightv = [];        
-        for i = 1:length(cc_pix),
-            weightv(i)=cc_pix(i).Area;
-        end
-        
+%AUDITORY_CONTOUR = cell(1,ntimescale_lists);
+for sigmacount = 1:ntimescale_lists %use the matlab parallel computing toolbox if multiple processors are available.
+
+	timescale = timescale_list(sigmacount);
+	timescale = (timescale/1000)*FS;
+	w = exp(-(t_win/timescale).^2); % gauss window
+	dw = w.*(t_win/(timescale^2))*-2; % deriv gauss window
+
+	q=spectrogram(SIGNAL,w,overlap,[],FS)+eps;
+	q2=spectrogram(SIGNAL,dw,overlap,[],FS)+eps;
+	dx = (q2./q)/(2*pi); %displacement according to the remapping algorithm
+	SONOGRAM{sigmacount} = q;
+
+	for angle_variable = 1:nangle_list
+
+		theta = angle_list(angle_variable);
+
+		% a quick approximation to the contour detection
+		s = -1*(imag(dx*exp(1j*theta))<0)+(imag(dx*exp(1j*theta))>0);
+		[gx, gy] = gradient(s);
+		BW = ((-gx*cos(theta+pi/2)+gy*sin(theta+pi/2))>.001);        
+
+		cc = bwconncomp(BW); %build a strucure containing a separate entry for each contour (connected component of BW).
+		cc_pix = regionprops(cc,'Area'); %this is the length of each contour
+		weightv = [];        
+		for i = 1:length(cc_pix),
+			weightv(i)=cc_pix(i).Area;
+		end
+
 		% Select only longer contours
-        f_longCon = find(weightv>=prctile(weightv,clength_threshold));
-        
-        % Construct 2d image that contains contour indices
-        ConImg = zeros(size(q));        
-        for ik = 1:length(f_longCon)
-            ind = cc.PixelIdxList(f_longCon(ik));
-            ConImg(ind{1}) = 1;
-        end
-        AUDITORY_CONTOUR{sigmacount}{angle_variable} = sparse(ConImg);
-        
-    end
-    
+		long_contours = find(weightv>=prctile(weightv,clength_threshold));
+
+		% Construct 2d image that contains contour indices
+		contour_image = zeros(size(q));        
+		power_image = zeros(size(q));
+		
+		for ik = 1:length(long_contours)
+			
+			ind = cc.PixelIdxList(long_contours(ik));
+			
+			% integrate the pwr	
+
+			pwr=sum(abs(q(ind{1})));
+			contour_image(ind{1}) = 1;
+			power_image(ind{1}) = pwr;
+
+		end
+		
+		AUDITORY_CONTOUR(sigmacount,angle_variable).bin_img = sparse(contour_image);
+		AUDITORY_CONTOUR(sigmacount,angle_variable).pwr_img = sparse(power_image);
+		
+	end
+
 end
 
 disp('Computing consensus...');
@@ -171,25 +183,29 @@ disp('Computing consensus...');
 CONSENSUS = zeros(size(SONOGRAM{1}));
 
 for sigmacount = 1:ntimescale_lists-1
-    
-    consensus = zeros(size(CONSENSUS));   
-    for angle_variable=1:nangle_list
-        
-        if angle_variable==1
-            cv = AUDITORY_CONTOUR{sigmacount}{1} + AUDITORY_CONTOUR{sigmacount+1}{angle_variable} + AUDITORY_CONTOUR{sigmacount}{nangle_list};
-            consensus = consensus + (cv>1);
-        else         
-            cv = AUDITORY_CONTOUR{sigmacount}{angle_variable} + AUDITORY_CONTOUR{sigmacount+1}{angle_variable} + AUDITORY_CONTOUR{sigmacount}{angle_variable-1};
-            consensus = consensus + (cv>1); %keep only contour points that show some agreement across neighboring angle_list or time-scales.
-        end
-    end
 
-    if pow_weight
-    	CONSENSUS = CONSENSUS + consensus.*abs(SONOGRAM{sigmacount}); % multiply consenus score by sonogram power for final image
-    else
-	CONSENSUS = CONSENSUS + consensus;
-    end
-    
+	consensus = zeros(size(CONSENSUS));   
+	for angle_variable=1:nangle_list
+
+		if angle_variable==1
+			cv = AUDITORY_CONTOUR(sigmacount,1).bin_img + ...
+				AUDITORY_CONTOUR(sigmacount+1,angle_variable).bin_img + ...
+			       	AUDITORY_CONTOUR(sigmacount,nangle_list).bin_img;
+			consensus = consensus + (cv>1);
+		else         
+			cv = AUDITORY_CONTOUR(sigmacount,angle_variable).bin_img + ...
+				AUDITORY_CONTOUR(sigmacount+1,angle_variable).bin_img + ...
+			       	AUDITORY_CONTOUR(sigmacount,angle_variable-1).bin_img;
+			consensus = consensus + (cv>1); %keep only contour points that show some agreement across neighboring angle_list or time-scales.
+		end
+	end
+
+	if pow_weight
+		CONSENSUS = CONSENSUS + consensus.*abs(SONOGRAM{sigmacount}); % multiply consenus score by sonogram power for final image
+	else
+		CONSENSUS = CONSENSUS + consensus;
+	end
+
 end
 
 
